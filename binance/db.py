@@ -18,6 +18,6 @@ def to_csv(klines):
             # tive que fazer um trabalho na hora de pegar o timestamp
             # pois o open_time vem com 13 dígitos e estava dando erro com o datetime
             # então eu só pego os 10 primeiro e funciona perfeitamente
-            date = datetime.fromtimestamp(int(str(1522022400000)[:10])).strftime("%d/%m/%Y %H:%M:%S")
+            date = datetime.fromtimestamp(int(str(k.open_time)[:10])).strftime("%d/%m/%Y %H:%M:%S")
             row = (date, k.open_, k.high, k.low, k.close, k.volume)
             f_csv.writerow(row)

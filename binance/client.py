@@ -49,7 +49,7 @@ class BinanceAPI:
         self.klines = [KLINE(*kline) for kline in response]
 
 def main():
-    binance = BinanceAPI(interval='12h')
+    binance = BinanceAPI(interval='1m')
     binance.consult()
     print(binance.klines)
 
