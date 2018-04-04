@@ -1,5 +1,6 @@
 """Binance Exceptions"""
 
+
 class ParamsException(Exception):
     pass
 
