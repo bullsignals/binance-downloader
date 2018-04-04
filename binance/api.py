@@ -10,11 +10,11 @@ log.setLevel(logging.DEBUG)
 
 
 class BinanceAPI:
-    def __init__(self, interval=None, limit=200, range_=12):
+    def __init__(self, interval, symbol, kwargs):
         self.base_url = 'https://api.binance.com/api/v1/klines?'
-        self.limit = limit
-        self.range = range_
+        self.symbol = symbol
         self.interval = interval
+        self.kwargs = kwargs
         self.klines = []
 
         if not self.interval:
@@ -33,8 +33,8 @@ class BinanceAPI:
         self._generate_list_of_kline_numedtuple(response)
 
     def _resquest_api(self):
-        payload = {'symbol': 'ETHBTC',
-                   'interval': self.interval, 'limit': str(self.limit)}
+        d = {'symbol': self.symbol, 'interval': self.interval}
+        payload = {**d, **self.kwargs}
         try:
             log.debug('calling ' + self.base_url)
             response = requests.get(self.base_url, params=payload)
@@ -45,13 +45,4 @@ class BinanceAPI:
 
     def _generate_list_of_kline_numedtuple(self, response):
         """return a list of Kline numedTuple to make attributes access easy"""
-        log.debug('generating sma')
         self.klines = [KLINE(*kline) for kline in response]
-
-def main():
-    binance = BinanceAPI(interval='1m')
-    binance.consult()
-    print(binance.klines)
-
-if __name__ == '__main__':
-    main()
