@@ -1,11 +1,36 @@
-# Binance API
+Binance Downloader
+==================
 
-clonagem e execução
-==========
-- Clone esse repositório
-- Entre no criado
-- Você deve primeiro criar um ambiente virtual usando o python 3.5 (python -m venv .ven, se você não usa pyenv será python3.5 -m venv .venv) 
-- Ativar o ambiente virtual(source .venv/bin/activate)
-- Executar pip install -r requirements.txt
-- Executar o comando do flit para criar um executável: flit install --symlink --python python
-- Executar, ex: binance -i 1m
+Python tool to download Binance Candlestick (k-line) data from REST API
+
+
+Instalation
+-----------
+- clone repository
+```console
+$ git clone https://github.com/bullsignals/binance-downloader.git
+$ cd binance-downloader
+```
+- activate your virtual enviroment and install dependencies.(using python >= 3.5)
+
+```console
+$ source /path-to-virtual-env/bin/activate
+$ pip install -r requirements.txt
+$ flit install --symlink --python python
+```
+Using binance downloader cli
+-----------------------------
+
+- Help
+```console
+$ binance -h 
+```
+
+- Downloading data
+```console
+$ binance -i 1m -l 1500 -st 01/01/2016 -e 05/04/2018
+```
+
+License
+-------
+This code is under MIT License. See LICENSE file for detail.
