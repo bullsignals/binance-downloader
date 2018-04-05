@@ -28,11 +28,14 @@ def main():
     kwargs = {}
 
     if args.limit:
-        kwargs['limit'] = args.limit
+        kwargs['limit'] = args.limit or 500
 
     if args.start and args.end:
         kwargs['startTime'] = date_to_timestamp(args.start)
         kwargs['endTime'] = date_to_timestamp(args.end)
+
+    if int(kwargs['limit']) > 500 and not (args.start and args.end) :
+        parser.exit(0, 'You must pass startTime and endTime because limit is bigger than 500.\n')
 
     symbol = args.symbol
     interval = args.interval
