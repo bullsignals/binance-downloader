@@ -7,6 +7,7 @@ import requests
 from binance.db import KLINE
 from binance.db import to_csv
 from binance.exceptions import IntervalException, ParamsException
+from binance.utils import update_start_time
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -36,18 +37,19 @@ class BinanceAPI:
         limit = int(self.kwargs.get('limit', default))
         acc = 0
         number_loops = math.ceil(limit/default)
+        print(number_loops)
         for ind in range(number_loops):
             self.set_limit(limit, acc, default)
             self.request()
             # from the second request forward
             # the first item returned is equal to the last item from previous request
             # and it was already written in the file.  
-            if ind > 0: self.klines = self.klines[1:]
             to_csv(self.klines, output)
             if 'startTime' in self.kwargs: 
                 # The last returned date will be the startTime of the next request
-                self.kwargs['startTime'] = self.klines[-1].open_time
+                self.kwargs['startTime'] = update_start_time(self.klines[-1].open_time)
             acc += self.kwargs['limit']
+        print(acc)
     
     def set_limit(self, limit, acc, default):
         if (limit - acc) <= default:
