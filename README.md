@@ -23,7 +23,7 @@ Using binance downloader cli
 
 - Help
 ```console
-$ binance -h
+$ kline-binance -h
 
 usage: binance [-h] --interval INTERVAL [--symbol SYMBOL] [--limit LIMIT]
                [--start START] [--end END] [--output OUTPUT]
@@ -49,7 +49,7 @@ optional arguments:
 
 - Downloading data
 ```console
-$ binance -i 1m -l 1500 -st 01/01/2016 -e 05/04/2018
+$ kline-binance -i 1m -l 1500 -st 01/01/2016 -e 05/04/2018
 ```
 
 License
