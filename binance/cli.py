@@ -3,7 +3,6 @@ import argparse
 from datetime import datetime
 
 from binance.api import BinanceAPI
-from binance.db import to_csv
 from binance.utils import date_to_timestamp
 
 
@@ -18,7 +17,7 @@ def main():
     parser.add_argument(
         '--symbol', '-s', help="pair. default: 'ETHBTC'.", default='ETHBTC')
     parser.add_argument(
-        '--limit', '-l', help="quantity of items returned; max 500; default 500.")
+        '--limit', '-l', help="quantity of items downloaded;")
     parser.add_argument(
         '--start', '-st', help="start period to get data. format: dd/mm/yy")
     parser.add_argument(
@@ -29,16 +28,18 @@ def main():
     kwargs = {}
 
     if args.limit:
-        kwargs['limit'] = args.limit
+        kwargs['limit'] = args.limit or 500
 
     if args.start and args.end:
         kwargs['startTime'] = date_to_timestamp(args.start)
         kwargs['endTime'] = date_to_timestamp(args.end)
 
+    if int(kwargs['limit']) > 500 and not (args.start and args.end) :
+        parser.exit(0, 'You must pass startTime and endTime because limit is bigger than 500.\n')
+
     symbol = args.symbol
     interval = args.interval
     binance = BinanceAPI(interval, symbol, kwargs)
-    binance.consult()
     output = args.output if args.output else 'binance'
-    to_csv(binance.klines, output)
+    binance.consult(output)
     print("download finished succesfully.")
