@@ -23,7 +23,28 @@ Using binance downloader cli
 
 - Help
 ```console
-$ binance -h 
+$ binance -h
+
+usage: binance [-h] --interval INTERVAL [--symbol SYMBOL] [--limit LIMIT]
+               [--start START] [--end END] [--output OUTPUT]
+
+Python tool to download Binance Candlestick (k-line) data from REST API
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --interval INTERVAL, -i INTERVAL
+                        frequence interval in minutes(m); hours(h); days(d);
+                        weeks(w); months(M); all possibles values: 1m 3m 5m
+                        15m 30m 1h 2h 4h 6h 8h 12h 1d 3d 1w 1M
+  --symbol SYMBOL, -s SYMBOL
+                        pair. default: 'ETHBTC'.
+  --limit LIMIT, -l LIMIT
+                        quantity of items downloaded;
+  --start START, -st START
+                        start period to get data. format: dd/mm/yy
+  --end END, -e END     start period to get data. format: dd/mm/yy
+  --output OUTPUT, -o OUTPUT
+                        File Name. default: binance. 
 ```
 
 - Downloading data
