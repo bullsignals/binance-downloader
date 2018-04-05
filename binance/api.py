@@ -1,8 +1,11 @@
+"""Module that makes the requests to the binance api"""
 import logging
+import math
 
 import requests
 
 from binance.db import KLINE
+from binance.db import to_csv
 from binance.exceptions import IntervalException, ParamsException
 
 log = logging.getLogger()
@@ -28,7 +31,31 @@ class BinanceAPI:
         return ('1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h',
                 '1d', '3d', '1w', '1M')
 
-    def consult(self):
+    def consult(self, output):
+        default = 500
+        limit = int(self.kwargs.get('limit', default))
+        acc = 0
+        number_loops = math.ceil(limit/default)
+        for ind in range(number_loops):
+            self.set_limit(limit, acc, default)
+            self.request()
+            # from the second request forward
+            # the first item returned is equal to the last item from previous request
+            # and it was already written in the file.  
+            if ind > 0: self.klines = self.klines[1:]
+            to_csv(self.klines, output)
+            if 'startTime' in self.kwargs: 
+                # The last returned date will be the startTime of the next request
+                self.kwargs['startTime'] = self.klines[-1].open_time
+            acc += self.kwargs['limit']
+    
+    def set_limit(self, limit, acc, default):
+        if (limit - acc) <= default:
+            self.kwargs['limit'] = limit - acc
+        else:
+            self.kwargs['limit'] = default
+
+    def request(self):
         response = self._resquest_api()
         self._generate_list_of_kline_numedtuple(response)
 
