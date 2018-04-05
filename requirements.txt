@@ -1,2 +1,3 @@
 requests==2.18.4
 flit==0.13
+tqdm==4.20.0
