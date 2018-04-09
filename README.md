@@ -11,7 +11,7 @@ Instalation
 $ git clone https://github.com/bullsignals/binance-downloader.git
 $ cd binance-downloader
 ```
-- activate your virtual enviroment and install dependencies.(using python >= 3.5)
+- activate your virtual enviroment and install dependencies (using python >= 3.5). If you don't know about virtual environments see   https://github.com/anderson89marques/about_python/blob/master/virtualenv.md
 
 ```console
 $ source /path-to-virtual-env/bin/activate
