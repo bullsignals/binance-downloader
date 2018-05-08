@@ -6,6 +6,8 @@ Python tool to download Binance Candlestick (k-line) data from REST API
 
 Instalation
 -----------
+
+### LINUX
 - clone repository
 ```console
 $ git clone https://github.com/bullsignals/binance-downloader.git
@@ -18,6 +20,32 @@ $ source /path-to-virtual-env/bin/activate
 $ pip install -r requirements.txt
 $ flit install --symlink --python python
 ```
+
+### WINDOWS
+
+- clone repository
+```console
+$ git clone https://github.com/bullsignals/binance-downloader.git
+$ cd binance-downloader
+```
+- activate your virtual enviroment and install dependencies (using python >= 3.5). If you don't know about virtual environments see   https://github.com/anderson89marques/about_python/blob/master/virtualenv.md
+
+```console
+$ source /path-to-virtual-env/bin/activate
+$ pip install -r requirements.txt
+``` 
+
+To execute  ```'flit install --symlink --python python'``` you need run command prompt as admin. 
+You can do that by:
+> Go to start -> All Programs -> Acessories -> Right click on Command Prompt and
+> select "Run as administrator"
+
+Then go to project directory, activate you virtual environment e execute the command.
+```console
+$ flit install --symlink --python python
+```
+Now you can run the kline-binance command line. You don't need execute the command prompt as admin before do that.
+
 Using binance downloader cli
 -----------------------------
 
