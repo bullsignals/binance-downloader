@@ -16,7 +16,7 @@ def to_csv(klines, output='binance'):
     headers = ['date', 'open', 'high', 'low', 'close', 'volume']
     output = "{}.csv".format(output)
     exist_output = os.path.exists(output)
-    with open(output, 'a') as f:
+    with open(output, 'a', newline=None) as f:
         f_csv = csv.writer(f)
         if not exist_output:
             f_csv.writerow(headers)
