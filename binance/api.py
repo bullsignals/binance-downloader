@@ -38,8 +38,8 @@ class BinanceAPI:
         default = 500
         limit = int(self.kwargs.get('limit', default))
         acc = 0
-        number_loops = math.ceil(limit/default)
-        with tqdm(total=limit) as pbar:    
+        number_loops = math.ceil(limit / default)
+        with tqdm(total=limit) as pbar:
             for ind in range(number_loops):
                 self.set_limit(limit, acc, default)
                 self.request()
@@ -47,12 +47,12 @@ class BinanceAPI:
                 # the first item returned is equal to the last item from previous request
                 # and it was already written in the file.  
                 to_csv(self.klines, output)
-                if 'startTime' in self.kwargs: 
+                if 'startTime' in self.kwargs:
                     # The last returned date will be the startTime of the next request
                     self.kwargs['startTime'] = update_start_time(self.klines[-1].open_time)
-                pbar.update(self.kwargs['limit'])    
+                pbar.update(self.kwargs['limit'])
                 acc += self.kwargs['limit']
-    
+
     def set_limit(self, limit, acc, default):
         if (limit - acc) <= default:
             self.kwargs['limit'] = limit - acc
