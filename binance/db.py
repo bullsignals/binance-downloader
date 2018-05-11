@@ -1,8 +1,7 @@
-"""Armazena dados em csv"""
-from collections import namedtuple
+"""Save data to csv file"""
 import csv
 import os
-from datetime import datetime
+from collections import namedtuple
 
 from binance.utils import timestamp_to_datetime
 
@@ -13,11 +12,12 @@ KLINE = namedtuple('Kline', ("open_time", "open_", "high", "low", "close",
 
 
 def to_csv(klines, output='binance'):
+    """Save data in csv file"""
     headers = ['date', 'open', 'high', 'low', 'close', 'volume']
     output = "{}.csv".format(output)
     exist_output = os.path.exists(output)
-    with open(output, 'a', newline=None) as f:
-        f_csv = csv.writer(f)
+    with open(output, 'a', newline='') as file_:
+        f_csv = csv.writer(file_)
         if not exist_output:
             f_csv.writerow(headers)
 
