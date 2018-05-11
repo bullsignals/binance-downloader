@@ -48,10 +48,11 @@ class BinanceAPI:
                 # and it was already written in the file.  
                 to_csv(self.klines, output)
                 if 'startTime' in self.kwargs:
-                    # The last returned date will be the startTime of the next request
-                    self.kwargs['startTime'] = update_start_time(self.klines[-1].open_time)
-                pbar.update(self.kwargs['limit'])
-                acc += self.kwargs['limit']
+                    if len(self.klines) > 0:
+                        # The last returned date will be the startTime of the next request
+                        self.kwargs['startTime'] = update_start_time(self.klines[-1].open_time)
+                    pbar.update(self.kwargs['limit'])
+                    acc += self.kwargs['limit']
 
     def set_limit(self, limit, acc, default):
         if (limit - acc) <= default:
