@@ -56,6 +56,7 @@ class BinanceAPI:
                     pbar.update(self.kwargs['limit'])
                     acc += self.kwargs['limit']
                 else:
+                    print('All records downloaded for the provided date range.')
                     break
 
     def set_limit(self, limit, acc, default):
