@@ -29,7 +29,9 @@ def main():
     kwargs = {}
 
     if args.limit:
-        kwargs['limit'] = args.limit or 500
+        kwargs['limit'] = args.limit
+    else:
+        kwargs['limit'] = 500
 
     if args.start and args.end:
         kwargs['startTime'] = date_to_timestamp(args.start)
