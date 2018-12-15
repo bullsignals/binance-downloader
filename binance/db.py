@@ -11,7 +11,7 @@ KLINE = namedtuple('Kline', ("open_time", "open_", "high", "low", "close",
                              "ignored"))
 
 
-def to_csv(klines, output='binance'):
+def to_csv(klines, output='binance', dateformat=None):
     """Save data in csv file"""
     headers = ['date', 'open', 'high', 'low', 'close', 'volume']
     output = "{}.csv".format(output)
@@ -22,6 +22,6 @@ def to_csv(klines, output='binance'):
             f_csv.writerow(headers)
 
         for k in klines:
-            date = timestamp_to_datetime(k.open_time)
+            date = timestamp_to_datetime(k.open_time, dateformat)
             row = (date, k.open_, k.high, k.low, k.close, k.volume)
             f_csv.writerow(row)

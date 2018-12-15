@@ -1,16 +1,17 @@
 """some date functions"""
+
 from datetime import datetime
 
+DATE_STRINGS = {'DMY': "%d/%m/%Y",
+                'MDY': "%m/%d/%Y",
+                'YMD': "%Y/%m/%d"}
 
-def timestamp_to_datetime(timestamp):
+
+def timestamp_to_datetime(timestamp, dateformat='DMY'):
     """Transform timestamp to python datetime"""
-    return datetime.fromtimestamp(int(str(timestamp)[:10])).strftime("%d/%m/%Y %H:%M:%S")
-
-
-def date_to_timestamp(date_str):
-    """Transform date to timestamp"""
-    timestamp = datetime.strptime(date_str, "%d/%m/%Y").timestamp()
-    return str(int(timestamp)) + '000'
+    desired_format = DATE_STRINGS.get(dateformat, 'DMY')
+    return datetime.utcfromtimestamp(timestamp // 1000).strftime(
+        f"{desired_format} %H:%M:%S")
 
 
 def update_start_time(time):
