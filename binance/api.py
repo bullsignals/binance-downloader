@@ -56,8 +56,11 @@ class BinanceAPI:
                     pbar.update(self.kwargs['limit'])
                     acc += self.kwargs['limit']
                 else:
-                    print('All records downloaded for the provided date range.')
-                    break
+                    if self.klines:
+                        # No updates from this iteration, but there were some
+                        # from previous request
+                        print('All records downloaded for the provided date range.')
+                    return
 
     def set_limit(self, limit, acc, default):
         """set the limit to the next consult"""
@@ -70,7 +73,29 @@ class BinanceAPI:
         """Call the method that make request to binance api
         and the method to generate the klines list."""
         response = self._resquest_api()
-        self._generate_list_of_kline_numedtuple(response)
+
+        # Check the status code to see if we got an expected result
+        st_code = response.status_code
+        if st_code % 100 == 4:
+            print('There was an error with this request:')
+            if st_code == 429:
+                print(f'Binance API rate limit was exceeded (error {st_code})')
+            elif st_code == 418:
+                print(f'Binance API has auto-banned this IP (error {st_code})')
+            else:
+                print(f'Unknown Binance API status code: {st_code} - ({response.json()})')
+        elif st_code % 100 == 5:
+            print(f'Binance internal error returned status code: {st_code}. '
+                  'The operation may not have completed successfully')
+        # There are cases where the request may return successfully, but there
+        # were no results in that range. In this case, inform the user instead
+        # of just the generic 'completed' message
+        if st_code == 200 and not response.json():
+            print('The request completed successfully, but no results were '
+                  'returned.\nBinance may not have any data for the '
+                  'date range requested.')
+
+        self._generate_list_of_kline_numedtuple(response.json())
 
     def _resquest_api(self):
         """make request to the binance api"""
@@ -82,7 +107,7 @@ class BinanceAPI:
         except requests.exceptions.RequestException as exc:
             raise exc
         else:
-            return response.json()
+            return response
 
     def _generate_list_of_kline_numedtuple(self, response):
         """return a list of Kline numedTuple to make attributes access easy"""

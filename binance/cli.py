@@ -46,4 +46,7 @@ def main():
     binance = BinanceAPI(interval, symbol, kwargs)
     output = args.output if args.output else 'binance'
     binance.consult(output)
-    print("download finished succesfully.")
+    if binance.klines:
+        print("Download finished successfully.")
+    else:
+        print('No data was retrieved')
