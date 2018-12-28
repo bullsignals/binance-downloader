@@ -1,4 +1,5 @@
 """some date functions"""
+import os
 import threading
 import time
 from functools import wraps
@@ -44,3 +45,9 @@ def rate_limited(max_per_second):
         return rate_limited_function
 
     return decorate
+
+
+def ensure_dir(file_path):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)

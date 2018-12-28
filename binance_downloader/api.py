@@ -15,7 +15,7 @@ from binance_downloader.binance_utils import (
     earliest_valid_timestamp,
     kline_df_from_flat_list,
 )
-from binance_downloader.utils import rate_limited
+from binance_downloader.utils import rate_limited, ensure_dir
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -108,7 +108,8 @@ class BinanceAPI:
             raise ValueError("Must read in data from Binance before writing to disk!")
         if output is None:
             timestamp = pd.Timestamp("now").strftime("%Y-%m-%d_%H%M%S")
-            output = f"{timestamp}_{self.symbol}_klines.csv"
+            output = f"./downloaded/{timestamp}_{self.symbol}_klines.csv"
+            ensure_dir(output)  # Create the directory if it doesn't exist
         with open(output, "w") as csv_file:
             self.kline_df.to_csv(csv_file, index=False, float_format="%.9f")
 

@@ -1,5 +1,6 @@
 # Project-specific files
 exchange_info.json
+type_stubs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
