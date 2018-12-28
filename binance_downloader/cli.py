@@ -1,8 +1,8 @@
 """Command Line Interface"""
 import argparse
 
-from binance.api import BinanceAPI
-from binance.binance_utils import date_to_milliseconds
+from binance_downloader.api import BinanceAPI
+from binance_downloader.binance_utils import date_to_milliseconds
 
 
 def main():
@@ -24,18 +24,18 @@ def main():
     )
     parser.add_argument("--limit", "-l", help="quantity of items downloaded;")
     parser.add_argument(
-        "--start", "-st", help="Start period to get data. format: dd/mm/yy"
+        "--start", "-st", help="Start period to get data. format: yyyy/mm/dd"
     )
     parser.add_argument(
-        "--end", "-e", help="End period to get data (exclusive). format: dd/mm/yy"
+        "--end", "-e", help="End period to get data (exclusive). format: yyyy/mm/dd"
     )
-    parser.add_argument("--output", "-o", help="File Name. default: binance.")
+    parser.add_argument("--output", "-o", help="File Name. default: binance")
     # Allow to choose MM/DD/YYYY for date input
     parser.add_argument(
         "--dateformat",
         "-df",
-        help="Format to use for dates (DMY, MDY, YMD, etc). Defaults to `DMY`",
-        default="DMY",
+        help="Format to use for dates (DMY, MDY, YMD, etc). Defaults to `YMD`",
+        default="YMD",
     )
 
     args = parser.parse_args()
@@ -66,8 +66,9 @@ def main():
 
     symbol = args.symbol
     interval = args.interval
-    binance = BinanceAPI(interval, symbol, kwargs, date_format=date_format)
-    output = args.output if args.output else "binance"
-    # binance.consult(output)
-    binance.fetch_parallel_sessions(output)
+    binance = BinanceAPI(interval, symbol, kwargs)
+    output = args.output if args.output else "binance.csv"
+    # binance_downloader.consult(output)
+    binance.fetch_parallel()
+    binance.write_to_csv()
     print("download finished successfully.")

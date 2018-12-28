@@ -3,7 +3,7 @@ import csv
 import os
 from collections import namedtuple
 
-from binance.utils import timestamp_to_datetime
+from binance_downloader.utils import timestamp_to_datetime
 
 KLINE = namedtuple(
     "Kline",
@@ -24,7 +24,7 @@ KLINE = namedtuple(
 )
 
 
-def to_csv(klines, output="binance", dateformat=None):
+def to_csv(klines, output="binance_downloader", dateformat=None):
     """Save data in csv file"""
     headers = ["date", "open", "high", "low", "close", "volume"]
     output = "{}.csv".format(output)

@@ -1,8 +1,9 @@
+import json
 import logging
+from typing import List, Union
 
 import pandas as pd
 import requests
-from typing import List, Union
 
 log = logging.getLogger()
 
@@ -27,6 +28,8 @@ KLINE_INTERVALS = (
     "1M",
 )
 
+EXCHANGE_INFO_FILE = "exchange_info.json"
+
 
 def get_request_freq(req_weight: int = 1, exchange_info: dict = None) -> pd.Timedelta:
     """Get smallest allowable frequency for API calls.
@@ -38,12 +41,8 @@ def get_request_freq(req_weight: int = 1, exchange_info: dict = None) -> pd.Time
         endpoint.
     :return: pandas.Timedelta of the smallest allowable time between calls
     """
-    if exchange_info is None:
-        log.warning(
-            "No exchange info given, so pulling this from API. Instead, cache "
-            "exchange_info and pass it to the function to minimize requests"
-        )
-        exchange_info = get_exchange_info()
+
+    exchange_info = exchange_info or get_exchange_info()
     rate_limits = exchange_info["rateLimits"]
     request_limits = [
         rate for rate in rate_limits if "REQUEST" in rate["rateLimitType"]
@@ -63,6 +62,27 @@ def get_request_freq(req_weight: int = 1, exchange_info: dict = None) -> pd.Time
 
 
 def get_exchange_info() -> dict:
+    # Try to read in from disk:
+    try:
+        with open(EXCHANGE_INFO_FILE, "r") as infile:
+            prev_json = json.load(infile)
+    except IOError:
+        print("Error reading in exchange info from JSON on disk. Fetching new")
+    else:
+        old_timestamp = pd.to_datetime(
+            prev_json.get("serverTime", None), unit="ms", utc=True
+        )
+        age = pd.Timestamp("now", tz="utc") - old_timestamp
+        print(f"Age of cached exchange info is {age}")
+        if old_timestamp and age < pd.Timedelta("1 day"):
+            # Data is OK to use
+            return prev_json
+    # Otherwise, get it again
+    log.warning(
+        "No exchange info given, so pulling this from API. Instead, cache "
+        "exchange_info and pass it to the function to minimize requests"
+    )
+
     req = requests.get(BASE_URL + "/exchangeInfo")
     if req.status_code != 200:
         raise ConnectionError(
@@ -72,48 +92,15 @@ def get_exchange_info() -> dict:
             )
         )
     data = req.json()
+
+    # Write out to disk for next time
+    with open(EXCHANGE_INFO_FILE, "w") as outfile:
+        json.dump(data, outfile, ensure_ascii=False)
+
     if isinstance(data, dict):
         return data
     else:
         raise ConnectionError("No exchange info returned from Binance")
-
-
-def get_kline_interval(base_interval) -> str:
-    """Attempts to convert an interval of unknown type to a valid kline interval
-
-
-    :param base_interval: (int, str, pandas.Timestamp)
-        Input interval. If already a valid kline interval, will return
-        unmodified value, otherwise will try to convert.
-    :return: If successful, returns a string with a valid kline interval
-    """
-    timedeltas = {pd.Timedelta(i): str(i) for i in KLINE_INTERVALS}
-
-    if isinstance(base_interval, int):
-        # Assume interval in milliseconds
-        try:
-            return timedeltas[pd.Timedelta(f"{base_interval}ms")]
-        except KeyError:
-            # Might be seconds instead
-            pass
-        try:
-            return timedeltas[pd.Timedelta(f"{base_interval}s")]
-        except KeyError:
-            raise ValueError(
-                f"{base_interval} is not a valid kline interval "
-                "in either milliseconds or seconds"
-            )
-    else:
-        try:
-            other_td = pd.Timedelta(base_interval)
-        except ValueError:
-            raise ValueError(f"Could not parse a valid interval from {base_interval}")
-        try:
-            return timedeltas[other_td]
-        except KeyError:
-            raise ValueError(
-                f"{base_interval} ({other_td}) is not a valid " "kline interval"
-            )
 
 
 def interval_to_milliseconds(interval) -> Union[int, None]:
@@ -139,7 +126,7 @@ def interval_to_milliseconds(interval) -> Union[int, None]:
         return None
 
 
-def date_to_milliseconds(date_str, date_format="DMY") -> int:
+def date_to_milliseconds(date_str, date_format="YMD") -> int:
     day_first = date_format.upper() == "DMY"
     year_first = date_format.upper() == "YMD"
     epoch = pd.Timestamp(0, tz="utc")
@@ -149,15 +136,16 @@ def date_to_milliseconds(date_str, date_format="DMY") -> int:
     return int((d - epoch).total_seconds() * 1000.0)
 
 
-def get_klines(symbol, interval, start_time=None, end_time=None, limit=None) -> List:
+def get_klines(
+    symbol, interval: str, start_time=None, end_time=None, limit=None
+) -> List:
     """Helper function to get klines from Binance for a single request
 
     :param symbol: (str)
         Symbol pair of interest (e.g. 'XRPBTC')
 
-    :param interval: (str, int, pandas.Timedelta)
-        Valid kline interval (e.g. '1m'). Will convert from types other than
-        string if possible.
+    :param interval: (str)
+        Valid kline interval (e.g. '1m').
     :param start_time: (int, str, pandas.Timestamp)
         First kline open time desired. If int, should be in milliseconds since
         Epoch. If string or pandas.Timestamp, will assume UTC unless otherwise
@@ -175,7 +163,6 @@ def get_klines(symbol, interval, start_time=None, end_time=None, limit=None) -> 
     """
     if not isinstance(symbol, str):
         raise ValueError(f"Cannot get kline for symbol {symbol}")
-    interval = get_kline_interval(interval)
     if not isinstance(start_time, int) and start_time is not None:
         start_time = date_to_milliseconds(start_time)
     if not isinstance(end_time, int) and end_time is not None:
@@ -217,7 +204,39 @@ def get_klines(symbol, interval, start_time=None, end_time=None, limit=None) -> 
     return response.json()
 
 
-def earliest_valid_timestamp(symbol: str, interval) -> int:
-    interval = get_kline_interval(interval)
-    kline = get_klines(symbol=symbol, interval=interval, start_time=0, limit=1)
+def earliest_valid_timestamp(symbol: str, interval: str) -> int:
+    if interval not in KLINE_INTERVALS:
+        raise ValueError(f"{interval} is not a valid kline interval")
+    kline = get_klines(symbol, interval, start_time=0, limit=1)
     return int(kline[0][0])
+
+
+def kline_df_from_flat_list(flat_list: List):
+    df = pd.DataFrame(
+        flat_list,
+        columns=[
+            "OpenTime",
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume",
+            "CloseTime",
+            "qav",
+            "numTrades",
+            "tbbav",
+            "tbqav",
+            "ignore",
+        ],
+    )
+    # Fix dates
+    df.OpenTime = pd.to_datetime(df.OpenTime, unit="ms")
+    df.CloseTime = pd.to_datetime(df.CloseTime, unit="ms")
+    # Fix numeric values
+    for f in ["Open", "High", "Low", "Close", "Volume"]:
+        df[f] = pd.to_numeric(df[f])
+    # Sort by interval open
+    df = df.sort_values("OpenTime")
+    # Remove duplicates (from interval overlaps)
+    df = df.drop_duplicates("OpenTime").reset_index(drop=True)
+    return df
