@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""Kline downloader for Binance API"""
 import sys
 
 from logbook import StreamHandler, TimedRotatingFileHandler
@@ -13,6 +14,6 @@ ensure_dir(LOG_FILENAME)
 TimedRotatingFileHandler(LOG_FILENAME, bubble=True).push_application()
 
 # Log to stdout for info and above
-StreamHandler(sys.stdout, level='NOTICE').push_application()
+StreamHandler(sys.stdout, level='NOTICE', bubble=True).push_application()
 
 

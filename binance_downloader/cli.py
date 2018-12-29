@@ -1,4 +1,5 @@
 import argparse
+
 from logbook import Logger
 
 from .api import BinanceAPI
@@ -8,13 +9,13 @@ log = Logger(__name__)
 
 
 def main():
+    log.info("*" * 80)
+    log.info("***" + "Starting CLI Parser for binance-downloader".center(74) + "***")
+    log.info("*" * 80)
     parser = argparse.ArgumentParser(
         description="CLI for downloading Binance Candlestick (k-line) data in bulk"
     )
-    parser.add_argument(
-        "symbol",
-        help="(Required) Binance symbol pair, e.g. ETHBTC",
-    )
+    parser.add_argument("symbol", help="(Required) Binance symbol pair, e.g. ETHBTC")
     parser.add_argument(
         "interval",
         help="(Required) Frequency interval in minutes(m); hours(h); days(d); weeks(w); months(M);"
