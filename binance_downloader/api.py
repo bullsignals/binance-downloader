@@ -43,6 +43,7 @@ class BinanceAPI:
         self.start_time, self.end_time = self._fill_dates(start_date, end_date)
 
         self.kline_df: Optional[pd.DataFrame] = None
+        self.download_successful = False
 
     @rate_limited(max_per_sec)
     def fetch_blocks(self, start_end_times):
@@ -57,7 +58,6 @@ class BinanceAPI:
 
     def fetch_parallel(self):
         # Get earliest possible kline
-        # TODO: Locally cache earliest valid timestamp for Binance pairs
         earliest = earliest_valid_timestamp(self.symbol, self.interval)
         ms_start = max(self.start_time, earliest)
         ms_end = min(self.end_time, date_to_milliseconds("now"))
@@ -98,8 +98,14 @@ class BinanceAPI:
         # Block until all workers are done
         pool.join()
 
-        log.info("Done fetching in parallel")
         self.kline_df = kline_df_from_flat_list(flat_results)
+        if len(self.kline_df) == 0:
+            log.warn(f"there are no k-lines for {self.symbol} at {self.interval} "
+                     f"intervals on Binance between {pd.to_datetime(self.start_time, unit='ms')} "
+                     f"and {pd.to_datetime(self.end_time, unit='ms')}")
+        else:
+            log.info("Done fetching in parallel")
+            self.download_successful = True
 
     def write_to_csv(self, output=None):
         """Write k-lines retrieved from Binance into a csv file
@@ -108,6 +114,9 @@ class BinanceAPI:
             directory with a timestamped filename based on symbol pair and interval
         :return: None
         """
+        if not self.download_successful:
+            log.warn("Not writing to output file since no data was received from API")
+            return
 
         if self.kline_df is None:
             raise ValueError("Must read in data from Binance before writing to disk!")

@@ -65,4 +65,3 @@ def main():
     binance = BinanceAPI(interval, symbol, start_date, end_date)
     binance.fetch_parallel()
     binance.write_to_csv()
-    log.notice("download finished successfully.")
