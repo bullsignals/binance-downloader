@@ -23,28 +23,6 @@ pyvenv.cfg
 .venv
 pip-selfcheck.json
 
-# Sphinx documentation
-docs/_build/
-
-# pyenv
-.python-version
-
-# dotenv
-.env
-
-# virtualenv
-.venv
-venv/
-ENV/
-
-# Rope project settings
-.ropeproject
-
-# mypy
-.mypy_cache/
-*csv
-.vscode
-
 # Folder view configuration files
 .DS_Store
 Desktop.ini
