@@ -1,11 +1,11 @@
 import json
-import logging
 from typing import List, Union
 
 import pandas as pd
 import requests
+from logbook import Logger
 
-log = logging.getLogger()
+log = Logger(__name__)
 
 BASE_URL = "https://api.binance.com/api/v1"
 KLINE_URL = BASE_URL + "/klines"
@@ -31,57 +31,82 @@ KLINE_INTERVALS = (
 EXCHANGE_INFO_FILE = "exchange_info.json"
 
 
-def get_request_freq(req_weight: int = 1, exchange_info: dict = None) -> pd.Timedelta:
+def max_request_freq(req_weight: int = 1) -> float:
     """Get smallest allowable frequency for API calls.
 
-    The return value is the smallest permissible interval between calls to the API
+    The return value is the maximum number of calls allowed per second
 
     :param req_weight: (int) weight assigned to this type of request
-    :param exchange_info: (dict) JSON response from a call to Binance `exchangeInfo`
-        endpoint.
-    :return: pandas.Timedelta of the smallest allowable time between calls
+        Default: 1-weight
+    :return: float of the maximum calls permitted per second
     """
 
-    exchange_info = exchange_info or get_exchange_info()
-    rate_limits = exchange_info["rateLimits"]
-    request_limits = [
-        rate for rate in rate_limits if "REQUEST" in rate["rateLimitType"]
-    ]
-    for rate in request_limits:
-        interval = pd.Timedelta("%s %s" % (rate["intervalNum"], rate["interval"]))
-        rate["req_freq"] = interval / rate["limit"]
+    # Pull Binance exchange metadata (including limits) either from cached value, or
+    # from the server if cached data is too old
+    request_limits = _req_limits(get_exchange_info())
 
-    lowest_allowable_freq = pd.Timedelta(0)
+    for rate in request_limits:
+        # Convert JSON response components (e.g.) "5" "minutes" to a Timedelta
+        interval = pd.Timedelta(f"{rate['intervalNum']} {rate['interval']}")
+        # Frequency (requests/second) is, e.g., 5000 / 300 sec or 1200 / 60 sec
+        rate["req_freq"] = int(rate["limit"]) / interval.total_seconds()
+
+    max_allowed_freq = None
+
     for limit in request_limits:
-        # RAW_REQUESTS type may be present, which should be treated as a
-        # request weight of 1
+        # RAW_REQUESTS type should be treated as a request weight of 1
         weight = req_weight if limit["rateLimitType"] == "REQUEST_WEIGHT" else 1
-        allowable_freq = limit["req_freq"] * weight
-        lowest_allowable_freq = max(lowest_allowable_freq, allowable_freq)
-    return lowest_allowable_freq
+        this_allowed_freq = limit["req_freq"] * weight
+
+        if max_allowed_freq is None:
+            max_allowed_freq = this_allowed_freq
+        else:
+            max_allowed_freq = min(max_allowed_freq, this_allowed_freq)
+
+    log.info(
+        f"Maximum permitted request frequency for weight {req_weight} is "
+        f"{max_allowed_freq} / sec"
+    )
+
+    if max_allowed_freq is None:
+        return 0
+    else:
+        return max_allowed_freq
+
+
+def _req_limits(exchange_info: dict) -> List:
+    return [
+        rate
+        for rate in (exchange_info["rateLimits"])
+        if "REQUEST" in rate["rateLimitType"]
+    ]
 
 
 def get_exchange_info() -> dict:
+    refresh_after = pd.Timedelta("1 day")
     # Try to read in from disk:
     try:
         with open(EXCHANGE_INFO_FILE, "r") as infile:
             prev_json = json.load(infile)
     except IOError:
-        print("Error reading in exchange info from JSON on disk. Fetching new")
+        log.warn("Error reading in exchange info from JSON on disk. Fetching new")
     else:
         old_timestamp = pd.to_datetime(
             prev_json.get("serverTime", None), unit="ms", utc=True
         )
         age = pd.Timestamp("now", tz="utc") - old_timestamp
-        print(f"Age of cached exchange info is {age}")
-        if old_timestamp and age < pd.Timedelta("1 day"):
+
+        if old_timestamp and age <= refresh_after:
             # Data is OK to use
+            log.info(
+                f"Using cached exchange info since its age ({age}) is less than {refresh_after}"
+            )
             return prev_json
-    # Otherwise, get it again
-    log.warning(
-        "No exchange info given, so pulling this from API. Instead, cache "
-        "exchange_info and pass it to the function to minimize requests"
-    )
+        else:
+            # Otherwise, get it again
+            log.notice(
+                "Exchange info cached data either not available or stale. Pulling from server..."
+            )
 
     req = requests.get(BASE_URL + "/exchangeInfo")
     if req.status_code != 200:
@@ -114,9 +139,7 @@ def interval_to_milliseconds(interval) -> Union[int, None]:
     if isinstance(interval, pd.Timedelta):
         return int(interval.total_seconds() * 1000)
     elif isinstance(interval, int):
-        log.info(
-            "Assuming interval is already in milliseconds and " "returning unchanged"
-        )
+        log.info(f"Assuming interval '{interval}' is already in milliseconds and returning unchanged")
         return interval
     # Try to convert from a string
     seconds_per_unit = {"m": 60, "h": 60 * 60, "d": 24 * 60 * 60, "w": 7 * 24 * 60 * 60}
@@ -170,10 +193,10 @@ def get_klines(
     if limit is None:
         limit = 1000
     elif limit > 1000:
-        log.info("Clamping kline request limit to 1000")
+        log.warn("Clamping kline request limit to 1000")
         limit = 1000
     elif limit <= 0:
-        log.info("Cannot have negative limit. Using 1000")
+        log.warn("Cannot have negative limit. Using 1000")
         limit = 1000
 
     # Set parameters and make the request

@@ -1,60 +1,58 @@
-"""Module that makes the requests to the binance_downloader api"""
-import logging
 from multiprocessing.pool import ThreadPool
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Optional
 
 import pandas as pd
+from logbook import Logger
 from tqdm import tqdm
 
-from binance_downloader.binance_utils import (
-    get_request_freq,
+from .binance_utils import (
+    max_request_freq,
     KLINE_INTERVALS,
     interval_to_milliseconds,
     date_to_milliseconds,
     get_klines,
     earliest_valid_timestamp,
     kline_df_from_flat_list,
+    KLINE_URL,
 )
-from binance_downloader.utils import rate_limited, ensure_dir
+from .utils import ensure_dir, rate_limited
 
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+# Set up LogBook logging
+log = Logger(__name__)
 
 
 class BinanceAPI:
-    """Make call to Binance api"""
 
-    wait_time = get_request_freq(1).total_seconds()
+    max_per_sec = max_request_freq(req_weight=1)
 
-    def __init__(self, interval: str, symbol: str, kwargs: Dict):
-        self.base_url: str = "https://api.binance_downloader.com/api/v1/klines"
+    def __init__(self, interval, symbol, start_date, end_date):
+        self.base_url = KLINE_URL
+        # Binance limit per request is 1000 items
+        self.req_limit = 1000
         self.symbol: str = symbol
         if (
             not interval
             or not isinstance(interval, str)
-            or interval not in self.valid_intervals
+            or interval not in KLINE_INTERVALS
         ):
             raise ValueError(
-                f"{interval} not recognized as valid Binance K-line interval."
+                f"'{interval}' not recognized as valid Binance k-line interval."
             )
         self.interval = interval
-        self.klines = []
-        self.start_time, self.end_time, self.limit = self._infer_date_parameters(kwargs)
-        if self.limit is None:
-            self.limit = 1000
+
+        self.start_time, self.end_time = self._fill_dates(start_date, end_date)
 
         self.kline_df: Optional[pd.DataFrame] = None
 
-    @property
-    def valid_intervals(self):
-        """return the intervals"""
-        return KLINE_INTERVALS
-
-    @rate_limited(1.0 / wait_time)
-    def get_klines_helper(self, start_end_times):
+    @rate_limited(max_per_sec)
+    def fetch_blocks(self, start_end_times):
         start, end = start_end_times
         return get_klines(
-            self.symbol, self.interval, start_time=start, end_time=end, limit=self.limit
+            self.symbol,
+            self.interval,
+            start_time=start,
+            end_time=end,
+            limit=self.req_limit,
         )
 
     def fetch_parallel(self):
@@ -64,7 +62,6 @@ class BinanceAPI:
         ms_start = max(self.start_time, earliest)
         ms_end = min(self.end_time, date_to_milliseconds("now"))
         ms_interval = interval_to_milliseconds(self.interval)
-        req_limit = max(self.limit, 1000)
 
         # Create list of all start and end timestamps
         ranges = []
@@ -73,7 +70,8 @@ class BinanceAPI:
             # Add some overlap to allow for small changes in interval on
             # Binance's side
             _end = min(
-                _start + (req_limit - 1) * ms_interval,  # Cover full interval in msec
+                _start
+                + (self.req_limit - 1) * ms_interval,  # Cover full interval in msec
                 ms_end - ms_interval,  # Cover up to given end date
             )
             # Add to list of all intervals we need to request
@@ -87,62 +85,78 @@ class BinanceAPI:
         # Fetch in parallel, but block until all requests are received
 
         flat_results = []
-        it = pool.imap(self.get_klines_helper, ranges)
+        it = pool.imap(self.fetch_blocks, ranges)
         # Prevent more tasks being added to the pool
         pool.close()
 
         # Show progress meter
-        with tqdm(total=len(ranges) * req_limit) as pbar:
+        with tqdm(total=len(ranges) * self.req_limit) as pbar:
             for r in it:
-                pbar.update(req_limit)
+                pbar.update(self.req_limit)
                 flat_results.extend(r)
 
         # Block until all workers are done
         pool.join()
 
-        print("\nDone fetching in parallel")
+        log.info("Done fetching in parallel")
         self.kline_df = kline_df_from_flat_list(flat_results)
 
     def write_to_csv(self, output=None):
+        """Write k-lines retrieved from Binance into a csv file
+
+        :param output: output file path. If none, will be stored in ./downloaded
+            directory with a timestamped filename based on symbol pair and interval
+        :return: None
+        """
+
         if self.kline_df is None:
             raise ValueError("Must read in data from Binance before writing to disk!")
-        if output is None:
-            timestamp = pd.Timestamp("now").strftime("%Y-%m-%d_%H%M%S")
-            output = f"./downloaded/{timestamp}_{self.symbol}_klines.csv"
-            ensure_dir(output)  # Create the directory if it doesn't exist
-        with open(output, "w") as csv_file:
-            self.kline_df.to_csv(csv_file, index=False, float_format="%.9f")
 
-    def _infer_date_parameters(self, kwargs: dict) -> Tuple[int, int, Optional[int]]:
-        start_date = kwargs.get("startTime", None)
-        end_date = kwargs.get("endTime", None)
-        limit = kwargs.get("limit", None)
-        default_limit = 1000
-        if start_date is not None:
-            if end_date is not None:
-                # Have start and end, so ignore limit
-                log.info("Found start and end date, getting all and ignoring limit")
-                limit = None
-            elif limit is not None:
-                # Have start and limit, but no end
-                end_date = start_date + limit * interval_to_milliseconds(self.interval)
-                log.info(f"Found start date and limit, fetching max of {limit} klines")
-            else:
-                # Start, but no end or limit
-                log.info("Found start date, but no end date or limit. Fetching to now")
-                end_date = date_to_milliseconds("now UTC")
+        # Generate default file name/path if none given
+        output = output or self.output_file
+
+        with open(output, "w") as csv_file:
+            # Ensure 9 decimal places  (most prices are to 8 places)
+
+            self.kline_df.to_csv(csv_file, index=False, float_format="%.9f")
+        log.notice(f"Done writing {output} for {len(self.kline_df)} lines")
+
+    @property
+    def output_file(self, extension="csv"):
+        timestamp = pd.Timestamp("now").strftime("%Y-%m-%d_%H%M%S")
+        outfile = (
+            f"./downloaded/{timestamp}_{self.symbol}_{self.interval}_klines.{extension}"
+        )
+
+        # Create the subdirectory if not present:
+        ensure_dir(outfile)
+        return outfile
+
+    def _fill_dates(self, start: Optional[int], end: Optional[int]) -> Tuple[int, int]:
+
+        # Get interval (in milliseconds) for limit * interval
+        # (i.e. 1000 * 1m = 60,000,000 milliseconds)
+        span = int(self.req_limit) * interval_to_milliseconds(self.interval)
+
+        if start and end:
+            log.info("Found start and end dates. Fetching full interval")
+            return start, end
+        elif start:
+            # No end date, so go forward by 1000 intervals
+            log.notice(f"Found start date but no end: fetching {self.req_limit} klines")
+            end = start + span
+        elif end:
+            # No start date, so go back 1000 intervals
+            log.notice(
+                f"Found end date but no start. Fetching previous {self.req_limit} klines"
+            )
+            start = end - span
         else:
-            if end_date is not None:
-                # End date and limit, but no start
-                limit = limit or default_limit
-                log.info(
-                    f"Found end date and limit, fetching {limit} klines up to end date"
-                )
-                start_date = end_date - limit * interval_to_milliseconds(self.interval)
-            else:
-                # No start or end date
-                end_date = date_to_milliseconds("now UTC")
-                start_date = end_date - limit * interval_to_milliseconds(self.interval)
-                limit = limit or default_limit
-                log.info(f"No start or end date, fetching most recent {limit} klines")
-        return start_date, end_date, limit
+            # Neither start nor end date. Get most recent 1000 intervals
+            log.notice(
+                f"Neither start nor end dates found. Fetching most recent {self.req_limit} klines"
+            )
+            end = date_to_milliseconds("now")
+            start = end - span
+
+        return start, end

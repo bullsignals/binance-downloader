@@ -4,3 +4,4 @@ dateparser==0.7.0
 requests==2.18.4
 tqdm==4.20.0
 pytz==2018.7
+logbook==1.4.1

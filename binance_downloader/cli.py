@@ -1,12 +1,17 @@
 """Command Line Interface"""
 import argparse
 
+from logbook import Logger
+
 from binance_downloader.api import BinanceAPI
 from binance_downloader.binance_utils import date_to_milliseconds
+
+log = Logger(__name__)
 
 
 def main():
     """Initial Command Line Function."""
+
     parser = argparse.ArgumentParser(
         description="Python tool to download Binance Candlestick (k-line) data from REST API"
     )
@@ -22,7 +27,6 @@ def main():
     parser.add_argument(
         "--symbol", "-s", help="pair. default: 'ETHBTC'.", default="ETHBTC"
     )
-    parser.add_argument("--limit", "-l", help="quantity of items downloaded;")
     parser.add_argument(
         "--start", "-st", help="Start period to get data. format: yyyy/mm/dd"
     )
@@ -39,36 +43,29 @@ def main():
     )
 
     args = parser.parse_args()
-    kwargs = {}
 
     if args.dateformat:
         if args.dateformat in ["DMY", "MDY", "YMD"]:
             date_format = args.dateformat
         else:
-            print(f"dateformat given ({args.dateformat}) not known. Using DMY")
-            date_format = "DMY"
+            log.warn(f"dateformat given ({args.dateformat}) not known. Using YMD")
+            date_format = "YMD"
     else:
-        date_format = "DMY"
+        date_format = "YMD"
 
-    if args.limit:
-        kwargs["limit"] = args.limit
+    if args.start:
+        start_date = date_to_milliseconds(args.start, date_format=date_format)
     else:
-        kwargs["limit"] = 500
+        start_date = None
 
-    if args.start and args.end:
-        kwargs["startTime"] = date_to_milliseconds(args.start, date_format=date_format)
-        kwargs["endTime"] = date_to_milliseconds(args.end, date_format=date_format)
+    if args.end:
+        end_date = date_to_milliseconds(args.end, date_format=date_format)
+    else:
+        end_date = None
 
-    if int(kwargs["limit"]) > 500 and not (args.start and args.end):
-        parser.exit(
-            0, "You must pass startTime and endTime because limit is bigger than 500.\n"
-        )
-
-    symbol = args.symbol
-    interval = args.interval
-    binance = BinanceAPI(interval, symbol, kwargs)
-    output = args.output if args.output else "binance.csv"
-    # binance_downloader.consult(output)
+    symbol = str(args.symbol)
+    interval = str(args.interval)
+    binance = BinanceAPI(interval, symbol, start_date, end_date)
     binance.fetch_parallel()
     binance.write_to_csv()
-    print("download finished successfully.")
+    log.notice("download finished successfully.")
