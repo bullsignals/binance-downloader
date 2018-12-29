@@ -29,6 +29,7 @@ KLINE_INTERVALS = (
 )
 
 EXCHANGE_INFO_FILE = "exchange_info.json"
+EARLIEST_TIMESTAMPS_FILE = "earliest_timestamps.json"
 
 
 def max_request_freq(req_weight: int = 1) -> float:
@@ -99,24 +100,20 @@ def get_exchange_info() -> dict:
         if old_timestamp and age <= refresh_after:
             # Data is OK to use
             log.info(
-                f"Using cached exchange info since its age ({age}) is less than {refresh_after}"
+                f"Using cached exchange info since its age ({age}) is less "
+                f"than {refresh_after}"
             )
             return prev_json
         else:
             # Otherwise, get it again
             log.notice(
-                "Exchange info cached data either not available or stale. Pulling from server..."
+                "Exchange info cached data either not available or stale. "
+                "Pulling from server..."
             )
 
-    req = requests.get(BASE_URL + "/exchangeInfo")
-    if req.status_code != 200:
-        raise ConnectionError(
-            "Failed to get expected response from the API. Status "
-            "code {} (error: {}): {}".format(
-                req.status_code, req.json()["code"], req.json()["msg"]
-            )
-        )
-    data = req.json()
+    response = requests.get(BASE_URL + "/exchangeInfo")
+    _validate_api_response(response)
+    data = response.json()
 
     # Write out to disk for next time
     with open(EXCHANGE_INFO_FILE, "w") as outfile:
@@ -139,7 +136,7 @@ def interval_to_milliseconds(interval) -> Union[int, None]:
     if isinstance(interval, pd.Timedelta):
         return int(interval.total_seconds() * 1000)
     elif isinstance(interval, int):
-        log.info(f"Assuming interval '{interval}' is already in milliseconds and returning unchanged")
+        log.info(f"Assuming interval '{interval}' is already in milliseconds")
         return interval
     # Try to convert from a string
     seconds_per_unit = {"m": 60, "h": 60 * 60, "d": 24 * 60 * 60, "w": 7 * 24 * 60 * 60}
@@ -166,7 +163,6 @@ def get_klines(
 
     :param symbol: (str)
         Symbol pair of interest (e.g. 'XRPBTC')
-
     :param interval: (str)
         Valid kline interval (e.g. '1m').
     :param start_time: (int, str, pandas.Timestamp)
@@ -209,29 +205,59 @@ def get_klines(
     response = requests.get(KLINE_URL, params=params)
 
     # Check for valid response
-    if response.status_code in [429, 418]:
-        raise ConnectionError(
-            "Rate limits exceeded or IP banned: {}".format(response.json())
-        )
-    elif response.status_code % 100 == 4:
-        raise ConnectionError("Request error: {}".format(response.json()))
-    elif response.status_code % 100 == 5:
-        raise ConnectionError(
-            "API error, status is unknown: {}".format(response.json())
-        )
-    elif response.status_code != 200:
-        raise ConnectionError(
-            "Unknown error on kline request: {}".format(response.json())
-        )
+    _validate_api_response(response)
 
     return response.json()
+
+
+def _validate_api_response(response):
+    if response.status_code in [429, 418]:
+        raise ConnectionError(f"Rate limits exceeded or IP banned: {response.json()}")
+    elif response.status_code % 100 == 4:
+        raise ConnectionError(f"Request error: {response.json()}")
+    elif response.status_code % 100 == 5:
+        raise ConnectionError(f"API error, status is unknown: {response.json()}")
+    elif response.status_code != 200:
+        raise ConnectionError(f"Unknown error on kline request: {response.json()}")
 
 
 def earliest_valid_timestamp(symbol: str, interval: str) -> int:
     if interval not in KLINE_INTERVALS:
         raise ValueError(f"{interval} is not a valid kline interval")
+
+    # Check for locally cached response
+    identifier = f"{symbol}_{interval}"
+    prev_json = {}
+    try:
+        with open(EARLIEST_TIMESTAMPS_FILE, "r") as infile:
+            prev_json = json.load(infile)
+    except IOError:
+        log.info(f"Could not open {EARLIEST_TIMESTAMPS_FILE}")
+    else:
+        # Loaded JSON from disk, check if we already have this value:
+        timestamp = prev_json.get(identifier, None)
+        if timestamp is not None:
+            log.info(
+                f"Found cached earliest timestamp for {identifier}: "
+                f"{pd.to_datetime(timestamp, unit='ms')}"
+            )
+            return timestamp
+    log.info(f"No cached earliest timestamp for {identifier}, so fetching from server")
+
+    # This will return the first recorded k-line for this interval and symbol
     kline = get_klines(symbol, interval, start_time=0, limit=1)
-    return int(kline[0][0])
+
+    # Get just the OpenTime value (timestamp in milliseconds)
+    earliest_timestamp = int(kline[0][0])
+
+    # Cache on disk
+    prev_json[identifier] = earliest_timestamp
+    with open(EARLIEST_TIMESTAMPS_FILE, "w") as outfile:
+        json.dump(prev_json, outfile, ensure_ascii=False)
+
+    log.info(f"Wrote new data to {EARLIEST_TIMESTAMPS_FILE} for {identifier}")
+
+    return earliest_timestamp
 
 
 def kline_df_from_flat_list(flat_list: List):
