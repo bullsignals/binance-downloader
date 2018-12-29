@@ -1,5 +1,6 @@
 # Project-specific files
 cache/
+downloaded/
 type_stubs/
 *.log
 
