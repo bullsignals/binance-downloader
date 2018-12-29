@@ -1,9 +1,10 @@
-import json
 from typing import List, Union
 
 import pandas as pd
 import requests
 from logbook import Logger
+
+from .utils import json_to_cache, json_from_cache
 
 log = Logger(__name__)
 
@@ -84,40 +85,31 @@ def _req_limits(exchange_info: dict) -> List:
 
 
 def get_exchange_info() -> dict:
-    refresh_after = pd.Timedelta("1 day")
     # Try to read in from disk:
-    try:
-        with open(EXCHANGE_INFO_FILE, "r") as infile:
-            prev_json = json.load(infile)
-    except IOError:
-        log.warn("Error reading in exchange info from JSON on disk. Fetching new")
-    else:
+    max_age = pd.Timedelta("1 day")
+    prev_json = json_from_cache(EXCHANGE_INFO_FILE)
+    if prev_json:
         old_timestamp = pd.to_datetime(
             prev_json.get("serverTime", None), unit="ms", utc=True
         )
         age = pd.Timestamp("now", tz="utc") - old_timestamp
 
-        if old_timestamp and age <= refresh_after:
+        if old_timestamp and age <= max_age:
             # Data is OK to use
             log.info(
-                f"Using cached exchange info since its age ({age}) is less "
-                f"than {refresh_after}"
+                f"Using cached exchange info since age ({age}) is less than {max_age}"
             )
             return prev_json
         else:
             # Otherwise, get it again
-            log.notice(
-                "Exchange info cached data either not available or stale. "
-                "Pulling from server..."
-            )
+            log.notice("Cached exchange info unavailable or stale; pulling from server")
 
     response = requests.get(BASE_URL + "/exchangeInfo")
     _validate_api_response(response)
     data = response.json()
 
     # Write out to disk for next time
-    with open(EXCHANGE_INFO_FILE, "w") as outfile:
-        json.dump(data, outfile, ensure_ascii=False)
+    json_to_cache(data, EXCHANGE_INFO_FILE)
 
     if isinstance(data, dict):
         return data
@@ -227,13 +219,8 @@ def earliest_valid_timestamp(symbol: str, interval: str) -> int:
 
     # Check for locally cached response
     identifier = f"{symbol}_{interval}"
-    prev_json = {}
-    try:
-        with open(EARLIEST_TIMESTAMPS_FILE, "r") as infile:
-            prev_json = json.load(infile)
-    except IOError:
-        log.info(f"Could not open {EARLIEST_TIMESTAMPS_FILE}")
-    else:
+    prev_json = json_from_cache(EARLIEST_TIMESTAMPS_FILE)
+    if prev_json:
         # Loaded JSON from disk, check if we already have this value:
         timestamp = prev_json.get(identifier, None)
         if timestamp is not None:
@@ -252,9 +239,7 @@ def earliest_valid_timestamp(symbol: str, interval: str) -> int:
 
     # Cache on disk
     prev_json[identifier] = earliest_timestamp
-    with open(EARLIEST_TIMESTAMPS_FILE, "w") as outfile:
-        json.dump(prev_json, outfile, ensure_ascii=False)
-
+    json_to_cache(prev_json, EARLIEST_TIMESTAMPS_FILE)
     log.info(f"Wrote new data to {EARLIEST_TIMESTAMPS_FILE} for {identifier}")
 
     return earliest_timestamp
