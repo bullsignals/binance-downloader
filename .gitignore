@@ -1,5 +1,5 @@
 # Project-specific files
-exchange_info.json
+*.json
 type_stubs/
 
 # Byte-compiled / optimized / DLL files
