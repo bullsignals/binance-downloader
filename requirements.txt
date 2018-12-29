@@ -1,3 +1,4 @@
-requests==2.18.4
-flit==0.13
-tqdm==4.20.0
+pandas==0.23.4
+requests==2.20.0
+tqdm==4.28.1
+logbook==1.4.1

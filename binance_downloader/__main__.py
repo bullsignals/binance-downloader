@@ -1,4 +1,5 @@
 """Execute the main cli function"""
-from binance import cli
+
+from binance_downloader import cli
 
 cli.main()
