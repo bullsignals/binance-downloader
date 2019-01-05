@@ -58,7 +58,7 @@ def max_request_freq(req_weight: int = 1) -> float:
     for limit in request_limits:
         # RAW_REQUESTS type should be treated as a request weight of 1
         weight = req_weight if limit["rateLimitType"] == "REQUEST_WEIGHT" else 1
-        this_allowed_freq = limit["req_freq"] * weight
+        this_allowed_freq = limit["req_freq"] / weight
 
         if max_allowed_freq is None:
             max_allowed_freq = this_allowed_freq
